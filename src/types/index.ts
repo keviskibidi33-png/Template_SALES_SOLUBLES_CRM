@@ -30,6 +30,7 @@ export type SalesSolublesPayload = {
     peso_constante_variacion_2?: Array<number | null>
     equipo_horno_codigo?: string
     equipo_balanza_0001_codigo?: string
+    equipo_balanza_001_codigo?: string
     revisado_por?: string
     revisado_fecha?: string
     aprobado_por?: string

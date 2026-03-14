@@ -218,6 +218,7 @@ type FormState = {
     peso_constante_variacion_2: Array<number | null>
     equipo_horno_codigo: string
     equipo_balanza_0001_codigo: string
+    equipo_balanza_001_codigo: string
     revisado_por: string
     revisado_fecha: string
     aprobado_por: string
@@ -242,6 +243,7 @@ const initialState = (): FormState => ({
     peso_constante_variacion_2: Array.from({ length: CONST_ROWS.length }, () => null),
     equipo_horno_codigo: '',
     equipo_balanza_0001_codigo: '',
+    equipo_balanza_001_codigo: '',
     revisado_por: '-',
     revisado_fecha: '',
     aprobado_por: '-',
@@ -280,6 +282,7 @@ const hydrateForm = (payload?: Partial<SalesSolublesPayload>): FormState => {
         peso_constante_variacion_2: normalizeArray(payload.peso_constante_variacion_2, CONST_ROWS.length, null),
         equipo_horno_codigo: payload.equipo_horno_codigo ?? base.equipo_horno_codigo,
         equipo_balanza_0001_codigo: payload.equipo_balanza_0001_codigo ?? base.equipo_balanza_0001_codigo,
+        equipo_balanza_001_codigo: payload.equipo_balanza_001_codigo ?? base.equipo_balanza_001_codigo,
     }
 }
 
@@ -724,6 +727,7 @@ export default function ModuloForm() {
                                     {[
                                         { label: 'Horno', key: 'equipo_horno_codigo' as const },
                                         { label: 'Balanza 0.0001', key: 'equipo_balanza_0001_codigo' as const },
+                                        { label: 'Balanza 0.01', key: 'equipo_balanza_001_codigo' as const },
                                     ].map((row) => (
                                         <tr key={row.key}>
                                             <td className="border-t border-r border-slate-300 px-2 py-1 text-xs">{row.label}</td>
