@@ -33,6 +33,8 @@ const FIXED_SHARED_VALUES = {
     peso_suelo_g: 100,
     volumen_solucion_tomada_ml: 100,
 } as const
+const LOCKED_CURSOR =
+    'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27%3E%3Ctext x=%273%27 y=%2718%27 font-size=%2716%27%3E%F0%9F%94%92%3C/text%3E%3C/svg%3E") 6 6, not-allowed'
 
 type CapsulaForm = {
     capsula_numero: string
@@ -447,7 +449,8 @@ export default function ModuloForm() {
         'h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-900 shadow-sm transition focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/35'
 
     const readOnlyInputClass = 'h-8 w-full rounded-md border border-slate-200 bg-slate-100 px-2 text-sm text-slate-800'
-    const fixedInputClass = 'h-8 w-full rounded-md border border-amber-300 bg-amber-100 px-2 text-sm font-semibold text-slate-900'
+    const fixedInputClass =
+        'h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-center text-sm text-slate-900 shadow-sm'
     const resolvedCapsulas = form.capsulas.map((capsula) =>
         resolveCapsula(capsula, {
             volumen_agua_ml: form.volumen_agua_ml,
@@ -617,6 +620,7 @@ export default function ModuloForm() {
                                                 className={fixedInputClass}
                                                 value={FIXED_SHARED_VALUES[row.field]}
                                                 readOnly
+                                                style={{ cursor: LOCKED_CURSOR }}
                                             />
                                         </td>
                                     </tr>
