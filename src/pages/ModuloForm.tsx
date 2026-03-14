@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { Beaker, Download, Loader2, Trash2 } from 'lucide-react'
@@ -35,6 +35,11 @@ const FIXED_SHARED_VALUES = {
 } as const
 const LOCKED_CURSOR =
     'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27%3E%3Ctext x=%273%27 y=%2718%27 font-size=%2716%27%3E%F0%9F%94%92%3C/text%3E%3C/svg%3E") 6 6, not-allowed'
+
+type TableFieldElement = HTMLInputElement | HTMLSelectElement
+type TableNavigationGroup = 'secado' | 'sales' | 'constante' | 'equipos'
+
+const getTableFieldKey = (table: TableNavigationGroup, row: number, col: number) => `${table}:${row}:${col}`
 
 type CapsulaForm = {
     capsula_numero: string
@@ -298,6 +303,7 @@ export default function ModuloForm() {
     const [loading, setLoading] = useState(false)
     const [loadingEdit, setLoadingEdit] = useState(false)
     const [ensayoId, setEnsayoId] = useState<number | null>(() => getEnsayoId())
+    const tableFieldRefs = useRef<Record<string, TableFieldElement | null>>({})
 
     useEffect(() => {
         const raw = localStorage.getItem(`${DRAFT_KEY}:${ensayoId ?? 'new'}`)
@@ -376,6 +382,21 @@ export default function ModuloForm() {
             })
         },
         [],
+    )
+
+    const focusTableField = useCallback((table: TableNavigationGroup, row: number, col: number) => {
+        const target = tableFieldRefs.current[getTableFieldKey(table, row, col)]
+        if (!target) return
+        target.focus()
+    }, [])
+
+    const handleTableEnter = useCallback(
+        (event: ReactKeyboardEvent<TableFieldElement>, table: TableNavigationGroup, row: number, col: number) => {
+            if (event.key !== 'Enter') return
+            event.preventDefault()
+            focusTableField(table, row + 1, col)
+        },
+        [focusTableField],
     )
 
     const clearAll = useCallback(() => {
@@ -566,6 +587,10 @@ export default function ModuloForm() {
                                                     className={denseInputClass}
                                                     value={form[row.key]}
                                                     onChange={(e) => setField(row.key, e.target.value)}
+                                                    onKeyDown={(e) => handleTableEnter(e, 'secado', idx, 0)}
+                                                    ref={(element) => {
+                                                        tableFieldRefs.current[getTableFieldKey('secado', idx, 0)] = element
+                                                    }}
                                                 >
                                                     {SECADO_OPTIONS.map((opt) => (
                                                         <option key={opt} value={opt}>
@@ -602,6 +627,10 @@ export default function ModuloForm() {
                                                 className={denseInputClass}
                                                 value={capsula.capsula_numero}
                                                 onChange={(e) => setCapsulaField(idx, 'capsula_numero', e.target.value)}
+                                                onKeyDown={(e) => handleTableEnter(e, 'sales', 0, idx)}
+                                                ref={(element) => {
+                                                    tableFieldRefs.current[getTableFieldKey('sales', 0, idx)] = element
+                                                }}
                                                 autoComplete="off"
                                                 data-lpignore="true"
                                             />
@@ -649,6 +678,20 @@ export default function ModuloForm() {
                                                         )
                                                     }}
                                                     readOnly={row.readOnly}
+                                                    onKeyDown={
+                                                        row.readOnly
+                                                            ? undefined
+                                                            : (e) => handleTableEnter(e, 'sales', row.key === 'd' ? 1 : 2, idx)
+                                                    }
+                                                    ref={
+                                                        row.readOnly
+                                                            ? undefined
+                                                            : (element) => {
+                                                                tableFieldRefs.current[
+                                                                    getTableFieldKey('sales', row.key === 'd' ? 1 : 2, idx)
+                                                                ] = element
+                                                            }
+                                                    }
                                                 />
                                             </td>
                                         ))}
@@ -678,6 +721,10 @@ export default function ModuloForm() {
                                                 className={denseInputClass}
                                                 value={form.peso_constante_hora[idx]}
                                                 onChange={(e) => setArrayTextField('peso_constante_hora', idx, e.target.value)}
+                                                onKeyDown={(e) => handleTableEnter(e, 'constante', idx, 0)}
+                                                ref={(element) => {
+                                                    tableFieldRefs.current[getTableFieldKey('constante', idx, 0)] = element
+                                                }}
                                             />
                                         </td>
                                         <td className="border-t border-r border-slate-300 p-1">
@@ -687,6 +734,10 @@ export default function ModuloForm() {
                                                 className={denseInputClass}
                                                 value={form.peso_constante_peso_1[idx] ?? ''}
                                                 onChange={(e) => setArrayNumberField('peso_constante_peso_1', idx, parseNum(e.target.value))}
+                                                onKeyDown={(e) => handleTableEnter(e, 'constante', idx, 1)}
+                                                ref={(element) => {
+                                                    tableFieldRefs.current[getTableFieldKey('constante', idx, 1)] = element
+                                                }}
                                             />
                                         </td>
                                         <td className="border-t border-r border-slate-300 p-1">
@@ -696,6 +747,10 @@ export default function ModuloForm() {
                                                 className={denseInputClass}
                                                 value={form.peso_constante_variacion_1[idx] ?? ''}
                                                 onChange={(e) => setArrayNumberField('peso_constante_variacion_1', idx, parseNum(e.target.value))}
+                                                onKeyDown={(e) => handleTableEnter(e, 'constante', idx, 2)}
+                                                ref={(element) => {
+                                                    tableFieldRefs.current[getTableFieldKey('constante', idx, 2)] = element
+                                                }}
                                             />
                                         </td>
                                         <td className="border-t border-r border-slate-300 p-1">
@@ -705,6 +760,10 @@ export default function ModuloForm() {
                                                 className={denseInputClass}
                                                 value={form.peso_constante_peso_2[idx] ?? ''}
                                                 onChange={(e) => setArrayNumberField('peso_constante_peso_2', idx, parseNum(e.target.value))}
+                                                onKeyDown={(e) => handleTableEnter(e, 'constante', idx, 3)}
+                                                ref={(element) => {
+                                                    tableFieldRefs.current[getTableFieldKey('constante', idx, 3)] = element
+                                                }}
                                             />
                                         </td>
                                         <td className="border-t border-slate-300 p-1">
@@ -714,6 +773,10 @@ export default function ModuloForm() {
                                                 className={denseInputClass}
                                                 value={form.peso_constante_variacion_2[idx] ?? ''}
                                                 onChange={(e) => setArrayNumberField('peso_constante_variacion_2', idx, parseNum(e.target.value))}
+                                                onKeyDown={(e) => handleTableEnter(e, 'constante', idx, 4)}
+                                                ref={(element) => {
+                                                    tableFieldRefs.current[getTableFieldKey('constante', idx, 4)] = element
+                                                }}
                                             />
                                         </td>
                                     </tr>
@@ -747,6 +810,10 @@ export default function ModuloForm() {
                                                     className={denseInputClass}
                                                     value={form[row.key]}
                                                     onChange={(e) => setField(row.key, e.target.value)}
+                                                    onKeyDown={(e) => handleTableEnter(e, 'equipos', idx, 0)}
+                                                    ref={(element) => {
+                                                        tableFieldRefs.current[getTableFieldKey('equipos', idx, 0)] = element
+                                                    }}
                                                 />
                                             </td>
                                         </tr>
