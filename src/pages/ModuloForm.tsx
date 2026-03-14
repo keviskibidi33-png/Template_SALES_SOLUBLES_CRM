@@ -28,6 +28,11 @@ const APROBADORES = ['-', 'IRMA COAQUIRA'] as const
 const SECADO_OPTIONS = ['', 'X'] as const
 const CONST_ROWS = [1, 2, 3, 4] as const
 const CAPSULA_COUNT = 2
+const FIXED_SHARED_VALUES = {
+    volumen_agua_ml: 500,
+    peso_suelo_g: 100,
+    volumen_solucion_tomada_ml: 100,
+} as const
 
 type CapsulaForm = {
     capsula_numero: string
@@ -232,9 +237,9 @@ const initialState = (): FormState => ({
     realizado_por: '',
     condicion_secado_aire: '',
     condicion_secado_horno: '',
-    volumen_agua_ml: null,
-    peso_suelo_g: null,
-    volumen_solucion_tomada_ml: null,
+    volumen_agua_ml: FIXED_SHARED_VALUES.volumen_agua_ml,
+    peso_suelo_g: FIXED_SHARED_VALUES.peso_suelo_g,
+    volumen_solucion_tomada_ml: FIXED_SHARED_VALUES.volumen_solucion_tomada_ml,
     capsulas: Array.from({ length: CAPSULA_COUNT }, () => createEmptyCapsula()),
     peso_constante_hora: Array.from({ length: CONST_ROWS.length }, () => ''),
     peso_constante_peso_1: Array.from({ length: CONST_ROWS.length }, () => null),
@@ -271,9 +276,9 @@ const hydrateForm = (payload?: Partial<SalesSolublesPayload>): FormState => {
         ...payload,
         condicion_secado_aire: payload.condicion_secado_aire ?? base.condicion_secado_aire,
         condicion_secado_horno: payload.condicion_secado_horno ?? base.condicion_secado_horno,
-        volumen_agua_ml: payload.volumen_agua_ml ?? base.volumen_agua_ml,
-        peso_suelo_g: payload.peso_suelo_g ?? base.peso_suelo_g,
-        volumen_solucion_tomada_ml: payload.volumen_solucion_tomada_ml ?? base.volumen_solucion_tomada_ml,
+        volumen_agua_ml: FIXED_SHARED_VALUES.volumen_agua_ml,
+        peso_suelo_g: FIXED_SHARED_VALUES.peso_suelo_g,
+        volumen_solucion_tomada_ml: FIXED_SHARED_VALUES.volumen_solucion_tomada_ml,
         capsulas,
         peso_constante_hora: normalizeArray(payload.peso_constante_hora, CONST_ROWS.length, ''),
         peso_constante_peso_1: normalizeArray(payload.peso_constante_peso_1, CONST_ROWS.length, null),
@@ -396,6 +401,7 @@ export default function ModuloForm() {
                 const capsulaPrincipal = capsulas[0] ?? createEmptyCapsula()
                 const payload: SalesSolublesPayload = {
                     ...form,
+                    ...FIXED_SHARED_VALUES,
                     capsulas,
                     capsula_numero: capsulaPrincipal.capsula_numero,
                     peso_capsula_g: capsulaPrincipal.peso_capsula_g,
@@ -441,6 +447,7 @@ export default function ModuloForm() {
         'h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-900 shadow-sm transition focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/35'
 
     const readOnlyInputClass = 'h-8 w-full rounded-md border border-slate-200 bg-slate-100 px-2 text-sm text-slate-800'
+    const fixedInputClass = 'h-8 w-full rounded-md border border-amber-300 bg-amber-100 px-2 text-sm font-semibold text-slate-900'
     const resolvedCapsulas = form.capsulas.map((capsula) =>
         resolveCapsula(capsula, {
             volumen_agua_ml: form.volumen_agua_ml,
@@ -607,9 +614,9 @@ export default function ModuloForm() {
                                             <input
                                                 type="number"
                                                 step="any"
-                                                className={denseInputClass}
-                                                value={form[row.field] ?? ''}
-                                                onChange={(e) => setField(row.field, parseNum(e.target.value))}
+                                                className={fixedInputClass}
+                                                value={FIXED_SHARED_VALUES[row.field]}
+                                                readOnly
                                             />
                                         </td>
                                     </tr>
