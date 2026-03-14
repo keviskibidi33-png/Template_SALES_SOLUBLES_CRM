@@ -1,3 +1,11 @@
+export type SalesSolublesCapsula = {
+    capsula_numero?: string
+    peso_capsula_g?: number | null
+    peso_capsula_sales_g?: number | null
+    peso_sales_g?: number | null
+    contenido_sales_ppm?: number | null
+}
+
 export type SalesSolublesPayload = {
     muestra: string
     numero_ot: string
@@ -6,6 +14,7 @@ export type SalesSolublesPayload = {
     cliente?: string
     condicion_secado_aire?: string
     condicion_secado_horno?: string
+    capsulas?: SalesSolublesCapsula[]
     capsula_numero?: string
     volumen_agua_ml?: number | null
     peso_suelo_g?: number | null

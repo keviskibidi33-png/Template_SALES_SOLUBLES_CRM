@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { Beaker, Download, Loader2, Trash2 } from 'lucide-react'
 import { getEnsayoDetail, saveAndDownload, saveEnsayo } from '@/services/api'
-import type { SalesSolublesPayload } from '@/types'
+import type { SalesSolublesCapsula, SalesSolublesPayload } from '@/types'
 import FormatConfirmModal from '../components/FormatConfirmModal'
 
 
@@ -27,6 +27,45 @@ const REVISORES = ['-', 'FABIAN LA ROSA'] as const
 const APROBADORES = ['-', 'IRMA COAQUIRA'] as const
 const SECADO_OPTIONS = ['', 'X'] as const
 const CONST_ROWS = [1, 2, 3, 4] as const
+const CAPSULA_COUNT = 2
+
+type CapsulaForm = {
+    capsula_numero: string
+    peso_capsula_g: number | null
+    peso_capsula_sales_g: number | null
+    peso_sales_g: number | null
+    contenido_sales_ppm: number | null
+}
+
+const createEmptyCapsula = (): CapsulaForm => ({
+    capsula_numero: '',
+    peso_capsula_g: null,
+    peso_capsula_sales_g: null,
+    peso_sales_g: null,
+    contenido_sales_ppm: null,
+})
+
+const hasCapsulaData = (capsula: Partial<CapsulaForm> | undefined): boolean => {
+    if (!capsula) return false
+    return [
+        capsula.capsula_numero?.trim(),
+        capsula.peso_capsula_g,
+        capsula.peso_capsula_sales_g,
+        capsula.peso_sales_g,
+        capsula.contenido_sales_ppm,
+    ].some((value) => value !== null && value !== undefined && value !== '')
+}
+
+const toCapsulaForm = (capsula?: SalesSolublesCapsula | null): CapsulaForm => ({
+    capsula_numero: capsula?.capsula_numero ?? '',
+    peso_capsula_g: capsula?.peso_capsula_g ?? null,
+    peso_capsula_sales_g: capsula?.peso_capsula_sales_g ?? null,
+    peso_sales_g: capsula?.peso_sales_g ?? null,
+    contenido_sales_ppm: capsula?.contenido_sales_ppm ?? null,
+})
+
+const normalizeCapsulas = (capsulas?: SalesSolublesCapsula[]): CapsulaForm[] =>
+    Array.from({ length: CAPSULA_COUNT }, (_, idx) => toCapsulaForm(capsulas?.[idx]))
 
 const getCurrentYearShort = () => new Date().getFullYear().toString().slice(-2)
 
@@ -91,6 +130,61 @@ const round = (value: number, decimals = 4) => {
     return Math.round(value * factor) / factor
 }
 
+const resolveCapsula = (
+    capsula: CapsulaForm,
+    shared: {
+        volumen_agua_ml: number | null
+        volumen_solucion_tomada_ml: number | null
+    },
+): CapsulaForm => {
+    const pesoSales = capsula.peso_capsula_g != null && capsula.peso_capsula_sales_g != null
+        ? round(capsula.peso_capsula_sales_g - capsula.peso_capsula_g, 4)
+        : capsula.peso_sales_g ?? null
+
+    const contenidoSales = pesoSales != null
+        && shared.volumen_agua_ml != null
+        && shared.volumen_solucion_tomada_ml != null
+        && shared.volumen_solucion_tomada_ml !== 0
+        ? round(((pesoSales * (shared.volumen_agua_ml / shared.volumen_solucion_tomada_ml)) / shared.volumen_solucion_tomada_ml) * 1000000, 3)
+        : capsula.contenido_sales_ppm ?? null
+
+    return {
+        ...capsula,
+        peso_sales_g: pesoSales,
+        contenido_sales_ppm: contenidoSales,
+    }
+}
+
+const SALES_SHARED_ROWS: Array<{
+    key: string
+    label: string
+    unit: string
+    field: 'volumen_agua_ml' | 'peso_suelo_g' | 'volumen_solucion_tomada_ml'
+}> = [
+    { key: 'a', label: 'Volumen de Agua Destilada', unit: '(ml)', field: 'volumen_agua_ml' },
+    { key: 'b', label: 'Peso del Suelo', unit: '(g)', field: 'peso_suelo_g' },
+    { key: 'c', label: 'Volumen de la Solucion Tomada', unit: '(ml)', field: 'volumen_solucion_tomada_ml' },
+]
+
+const SALES_CAPSULA_ROWS: Array<{
+    key: string
+    label: string
+    unit: string
+    field: keyof CapsulaForm
+    readOnly?: boolean
+}> = [
+    { key: 'd', label: 'Peso de Capsula', unit: '(g)', field: 'peso_capsula_g' },
+    { key: 'e', label: 'Peso de Capsula + Sales Solubles', unit: '(g)', field: 'peso_capsula_sales_g' },
+    { key: 'f', label: 'Peso de Sales Solubles (e-d)', unit: '(g)', field: 'peso_sales_g', readOnly: true },
+    {
+        key: 'g',
+        label: 'Contenido de Sales Solubles ((f*(a/c))/c)*1000000',
+        unit: '(ppm)',
+        field: 'contenido_sales_ppm',
+        readOnly: true,
+    },
+]
+
 const normalizeArray = <T,>(value: T[] | undefined, length: number, fallback: T): T[] => {
     const result = Array.from({ length }, () => fallback)
     if (!value) return result
@@ -113,14 +207,10 @@ type FormState = {
     realizado_por: string
     condicion_secado_aire: string
     condicion_secado_horno: string
-    capsula_numero: string
     volumen_agua_ml: number | null
     peso_suelo_g: number | null
     volumen_solucion_tomada_ml: number | null
-    peso_capsula_g: number | null
-    peso_capsula_sales_g: number | null
-    peso_sales_g: number | null
-    contenido_sales_ppm: number | null
+    capsulas: CapsulaForm[]
     peso_constante_hora: string[]
     peso_constante_peso_1: Array<number | null>
     peso_constante_variacion_1: Array<number | null>
@@ -141,14 +231,10 @@ const initialState = (): FormState => ({
     realizado_por: '',
     condicion_secado_aire: '',
     condicion_secado_horno: '',
-    capsula_numero: '',
     volumen_agua_ml: null,
     peso_suelo_g: null,
     volumen_solucion_tomada_ml: null,
-    peso_capsula_g: null,
-    peso_capsula_sales_g: null,
-    peso_sales_g: null,
-    contenido_sales_ppm: null,
+    capsulas: Array.from({ length: CAPSULA_COUNT }, () => createEmptyCapsula()),
     peso_constante_hora: Array.from({ length: CONST_ROWS.length }, () => ''),
     peso_constante_peso_1: Array.from({ length: CONST_ROWS.length }, () => null),
     peso_constante_variacion_1: Array.from({ length: CONST_ROWS.length }, () => null),
@@ -166,19 +252,27 @@ const hydrateForm = (payload?: Partial<SalesSolublesPayload>): FormState => {
     const base = initialState()
     if (!payload) return base
 
+    const legacyCapsula = toCapsulaForm({
+        capsula_numero: payload.capsula_numero,
+        peso_capsula_g: payload.peso_capsula_g,
+        peso_capsula_sales_g: payload.peso_capsula_sales_g,
+        peso_sales_g: payload.peso_sales_g,
+        contenido_sales_ppm: payload.contenido_sales_ppm,
+    })
+    const capsulas = normalizeCapsulas(payload.capsulas)
+    if ((!payload.capsulas || payload.capsulas.length === 0) && hasCapsulaData(legacyCapsula)) {
+        capsulas[0] = legacyCapsula
+    }
+
     return {
         ...base,
         ...payload,
         condicion_secado_aire: payload.condicion_secado_aire ?? base.condicion_secado_aire,
         condicion_secado_horno: payload.condicion_secado_horno ?? base.condicion_secado_horno,
-        capsula_numero: payload.capsula_numero ?? base.capsula_numero,
         volumen_agua_ml: payload.volumen_agua_ml ?? base.volumen_agua_ml,
         peso_suelo_g: payload.peso_suelo_g ?? base.peso_suelo_g,
         volumen_solucion_tomada_ml: payload.volumen_solucion_tomada_ml ?? base.volumen_solucion_tomada_ml,
-        peso_capsula_g: payload.peso_capsula_g ?? base.peso_capsula_g,
-        peso_capsula_sales_g: payload.peso_capsula_sales_g ?? base.peso_capsula_sales_g,
-        peso_sales_g: payload.peso_sales_g ?? base.peso_sales_g,
-        contenido_sales_ppm: payload.contenido_sales_ppm ?? base.contenido_sales_ppm,
+        capsulas,
         peso_constante_hora: normalizeArray(payload.peso_constante_hora, CONST_ROWS.length, ''),
         peso_constante_peso_1: normalizeArray(payload.peso_constante_peso_1, CONST_ROWS.length, null),
         peso_constante_variacion_1: normalizeArray(payload.peso_constante_variacion_1, CONST_ROWS.length, null),
@@ -262,28 +356,23 @@ export default function ModuloForm() {
         [],
     )
 
+    const setCapsulaField = useCallback(
+        <K extends keyof CapsulaForm>(capsulaIndex: number, key: K, value: CapsulaForm[K]) => {
+            setForm((prev) => {
+                const capsulas = prev.capsulas.map((capsula, idx) =>
+                    idx === capsulaIndex ? { ...capsula, [key]: value } : capsula,
+                )
+                return { ...prev, capsulas }
+            })
+        },
+        [],
+    )
+
     const clearAll = useCallback(() => {
         if (!window.confirm('Se limpiaran los datos no guardados. Deseas continuar?')) return
         localStorage.removeItem(`${DRAFT_KEY}:${ensayoId ?? 'new'}`)
         setForm(initialState())
     }, [ensayoId])
-
-    const computedPesoSales = useMemo(() => {
-        if (form.peso_capsula_g == null || form.peso_capsula_sales_g == null) return null
-        return round(form.peso_capsula_sales_g - form.peso_capsula_g, 4)
-    }, [form.peso_capsula_g, form.peso_capsula_sales_g])
-
-    const resolvedPesoSales = form.peso_sales_g ?? computedPesoSales
-
-    const computedContenido = useMemo(() => {
-        if (resolvedPesoSales == null || form.volumen_agua_ml == null || form.volumen_solucion_tomada_ml == null) return null
-        if (form.volumen_solucion_tomada_ml === 0) return null
-        const a = form.volumen_agua_ml
-        const c = form.volumen_solucion_tomada_ml
-        return round(((resolvedPesoSales * (a / c)) / c) * 1000000, 3)
-    }, [resolvedPesoSales, form.volumen_agua_ml, form.volumen_solucion_tomada_ml])
-
-    const resolvedContenido = form.contenido_sales_ppm ?? computedContenido
     const [pendingFormatAction, setPendingFormatAction] = useState<boolean | null>(null)
 
 
@@ -295,10 +384,21 @@ export default function ModuloForm() {
             }
             setLoading(true)
             try {
+                const capsulas = form.capsulas.map((capsula) =>
+                    resolveCapsula(capsula, {
+                        volumen_agua_ml: form.volumen_agua_ml,
+                        volumen_solucion_tomada_ml: form.volumen_solucion_tomada_ml,
+                    }),
+                )
+                const capsulaPrincipal = capsulas[0] ?? createEmptyCapsula()
                 const payload: SalesSolublesPayload = {
                     ...form,
-                    peso_sales_g: resolvedPesoSales,
-                    contenido_sales_ppm: resolvedContenido,
+                    capsulas,
+                    capsula_numero: capsulaPrincipal.capsula_numero,
+                    peso_capsula_g: capsulaPrincipal.peso_capsula_g,
+                    peso_capsula_sales_g: capsulaPrincipal.peso_capsula_sales_g,
+                    peso_sales_g: capsulaPrincipal.peso_sales_g,
+                    contenido_sales_ppm: capsulaPrincipal.contenido_sales_ppm,
                 }
 
                 if (download) {
@@ -331,8 +431,6 @@ export default function ModuloForm() {
         [
             ensayoId,
             form,
-            resolvedContenido,
-            resolvedPesoSales,
         ],
     )
 
@@ -340,6 +438,12 @@ export default function ModuloForm() {
         'h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-900 shadow-sm transition focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/35'
 
     const readOnlyInputClass = 'h-8 w-full rounded-md border border-slate-200 bg-slate-100 px-2 text-sm text-slate-800'
+    const resolvedCapsulas = form.capsulas.map((capsula) =>
+        resolveCapsula(capsula, {
+            volumen_agua_ml: form.volumen_agua_ml,
+            volumen_solucion_tomada_ml: form.volumen_solucion_tomada_ml,
+        }),
+    )
 
     return (
         <div className="min-h-screen bg-slate-100 p-4 md:p-6">
@@ -470,96 +574,70 @@ export default function ModuloForm() {
                                 <col />
                                 <col className="w-20" />
                                 <col className="w-44" />
+                                <col className="w-44" />
                             </colgroup>
                             <tbody>
                                 <tr className="bg-slate-50 text-xs font-semibold text-slate-800">
                                     <td className="border-r border-slate-300 py-1" colSpan={2}>Capsula</td>
                                     <td className="border-r border-slate-300 py-1 text-center">N°</td>
-                                    <td className="py-1">
-                                        <input
-                                            className={denseInputClass}
-                                            value={form.capsula_numero}
-                                            onChange={(e) => setField('capsula_numero', e.target.value)}
-                                            autoComplete="off"
-                                            data-lpignore="true"
-                                        />
-                                    </td>
+                                    {form.capsulas.map((capsula, idx) => (
+                                        <td
+                                            key={idx}
+                                            className={idx < CAPSULA_COUNT - 1 ? 'border-r border-slate-300 py-1 px-1' : 'py-1 px-1'}
+                                        >
+                                            <input
+                                                className={denseInputClass}
+                                                value={capsula.capsula_numero}
+                                                onChange={(e) => setCapsulaField(idx, 'capsula_numero', e.target.value)}
+                                                autoComplete="off"
+                                                data-lpignore="true"
+                                            />
+                                        </td>
+                                    ))}
                                 </tr>
-                                {[
-                                    {
-                                        key: 'a',
-                                        label: 'Volumen de Agua Destilada',
-                                        unit: '(ml)',
-                                        field: 'volumen_agua_ml' as const,
-                                        value: form.volumen_agua_ml,
-                                        readonly: false,
-                                    },
-                                    {
-                                        key: 'b',
-                                        label: 'Peso del Suelo',
-                                        unit: '(g)',
-                                        field: 'peso_suelo_g' as const,
-                                        value: form.peso_suelo_g,
-                                        readonly: false,
-                                    },
-                                    {
-                                        key: 'c',
-                                        label: 'Volumen de la Solucion Tomada',
-                                        unit: '(ml)',
-                                        field: 'volumen_solucion_tomada_ml' as const,
-                                        value: form.volumen_solucion_tomada_ml,
-                                        readonly: false,
-                                    },
-                                    {
-                                        key: 'd',
-                                        label: 'Peso de Capsula',
-                                        unit: '(g)',
-                                        field: 'peso_capsula_g' as const,
-                                        value: form.peso_capsula_g,
-                                        readonly: false,
-                                    },
-                                    {
-                                        key: 'e',
-                                        label: 'Peso de Capsula + Sales Solubles',
-                                        unit: '(g)',
-                                        field: 'peso_capsula_sales_g' as const,
-                                        value: form.peso_capsula_sales_g,
-                                        readonly: false,
-                                    },
-                                    {
-                                        key: 'f',
-                                        label: 'Peso de Sales Solubles (e-d)',
-                                        unit: '(g)',
-                                        field: 'peso_sales_g' as const,
-                                        value: resolvedPesoSales,
-                                        readonly: true,
-                                    },
-                                    {
-                                        key: 'g',
-                                        label: 'Contenido de Sales Solubles ((f*(a/c))/c)*1000000',
-                                        unit: '(ppm)',
-                                        field: 'contenido_sales_ppm' as const,
-                                        value: resolvedContenido,
-                                        readonly: true,
-                                    },
-                                ].map((row) => (
+                                {SALES_SHARED_ROWS.map((row) => (
                                     <tr key={row.key}>
                                         <td className="border-t border-r border-slate-300 px-2 py-1 text-xs font-semibold">{row.key}</td>
                                         <td className="border-t border-r border-slate-300 px-2 py-1 text-xs">{row.label}</td>
                                         <td className="border-t border-r border-slate-300 px-2 py-1 text-center text-xs">{row.unit}</td>
-                                        <td className="border-t border-slate-300 p-1">
+                                        <td className="border-t border-slate-300 p-1" colSpan={2}>
                                             <input
                                                 type="number"
                                                 step="any"
-                                                className={row.readonly ? readOnlyInputClass : denseInputClass}
-                                                value={row.value ?? ''}
-                                                onChange={(e) => {
-                                                    if (row.readonly) return
-                                                    setField(row.field, parseNum(e.target.value))
-                                                }}
-                                                readOnly={row.readonly}
+                                                className={denseInputClass}
+                                                value={form[row.field] ?? ''}
+                                                onChange={(e) => setField(row.field, parseNum(e.target.value))}
                                             />
                                         </td>
+                                    </tr>
+                                ))}
+                                {SALES_CAPSULA_ROWS.map((row) => (
+                                    <tr key={row.key}>
+                                        <td className="border-t border-r border-slate-300 px-2 py-1 text-xs font-semibold">{row.key}</td>
+                                        <td className="border-t border-r border-slate-300 px-2 py-1 text-xs">{row.label}</td>
+                                        <td className="border-t border-r border-slate-300 px-2 py-1 text-center text-xs">{row.unit}</td>
+                                        {form.capsulas.map((capsula, idx) => (
+                                            <td
+                                                key={`${row.key}-${idx}`}
+                                                className={idx < CAPSULA_COUNT - 1 ? 'border-t border-r border-slate-300 p-1' : 'border-t border-slate-300 p-1'}
+                                            >
+                                                <input
+                                                    type="number"
+                                                    step="any"
+                                                    className={row.readOnly ? readOnlyInputClass : denseInputClass}
+                                                    value={(row.readOnly ? resolvedCapsulas[idx][row.field] : capsula[row.field]) ?? ''}
+                                                    onChange={(e) => {
+                                                        if (row.readOnly) return
+                                                        setCapsulaField(
+                                                            idx,
+                                                            row.field,
+                                                            parseNum(e.target.value) as CapsulaForm[typeof row.field],
+                                                        )
+                                                    }}
+                                                    readOnly={row.readOnly}
+                                                />
+                                            </td>
+                                        ))}
                                     </tr>
                                 ))}
                             </tbody>
