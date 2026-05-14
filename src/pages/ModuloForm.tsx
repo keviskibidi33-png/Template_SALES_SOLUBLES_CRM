@@ -859,7 +859,13 @@ export default function ModuloForm() {
                                     <select
                                         className={denseInputClass}
                                         value={form.revisado_por}
-                                        onChange={(e) => setField('revisado_por', e.target.value)}
+                                        onChange={(e) => {
+                                            const v = e.target.value
+                                            setField('revisado_por', v)
+                                            if (v !== '-') {
+                                                setField('revisado_fecha', normalizeFlexibleDate(new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Lima' })))
+                                            }
+                                        }}
                                     >
                                         {REVISORES.map((opt) => (
                                             <option key={opt} value={opt}>
@@ -884,7 +890,13 @@ export default function ModuloForm() {
                                     <select
                                         className={denseInputClass}
                                         value={form.aprobado_por}
-                                        onChange={(e) => setField('aprobado_por', e.target.value)}
+                                        onChange={(e) => {
+                                            const v = e.target.value
+                                            setField('aprobado_por', v)
+                                            if (v !== '-') {
+                                                setField('aprobado_fecha', normalizeFlexibleDate(new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Lima' })))
+                                            }
+                                        }}
                                     >
                                         {APROBADORES.map((opt) => (
                                             <option key={opt} value={opt}>
