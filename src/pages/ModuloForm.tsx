@@ -20,7 +20,7 @@ const buildFormatPreview = (sampleCode: string | undefined, materialCode: 'SU' |
 
 
 const MODULE_TITLE = 'Sales Solubles'
-const FILE_PREFIX = 'SALES_SOLUBLES'
+// const FILE_PREFIX = 'SALES_SOLUBLES'
 const DRAFT_KEY = 'sales-solubles_form_draft_v2'
 const DEBOUNCE_MS = 700
 const REVISORES = ['-', 'FABIAN LA ROSA'] as const
@@ -311,16 +311,19 @@ export default function ModuloForm() {
     const [loading, setLoading] = useState(false)
     const [loadingEdit, setLoadingEdit] = useState(false)
     const [ensayoId, setEnsayoId] = useState<number | null>(() => getEnsayoId())
+    const [showDraftBanner, setShowDraftBanner] = useState(false)
+    const [draftData, setDraftData] = useState<FormState | null>(null)
     const tableFieldRefs = useRef<Record<string, TableFieldElement | null>>({})
 
     useEffect(() => {
-        const raw = localStorage.getItem(`${DRAFT_KEY}:${ensayoId ?? 'new'}`)
+        if (ensayoId) return
+        const raw = localStorage.getItem(`${DRAFT_KEY}:new`)
         if (!raw) return
         try {
             const parsed = JSON.parse(raw) as Partial<SalesSolublesPayload>
             setForm(hydrateForm(parsed))
         } catch {
-            localStorage.removeItem(`${DRAFT_KEY}:${ensayoId ?? 'new'}`)
+            localStorage.removeItem(`${DRAFT_KEY}:new`)
         }
     }, [ensayoId])
 
@@ -339,7 +342,23 @@ export default function ModuloForm() {
             try {
                 const detail = await getEnsayoDetail(ensayoId)
                 if (!cancel && detail.payload) {
-                    setForm(hydrateForm(detail.payload))
+                    const serverState = hydrateForm(detail.payload)
+                    const rawDraft = localStorage.getItem(`${DRAFT_KEY}:${ensayoId}`)
+                    if (rawDraft) {
+                        try {
+                            const parsedDraft = JSON.parse(rawDraft) as Partial<SalesSolublesPayload>
+                            const draftState = hydrateForm(parsedDraft)
+                            if (JSON.stringify(draftState) !== JSON.stringify(serverState)) {
+                                setDraftData(draftState)
+                                setShowDraftBanner(true)
+                            } else {
+                                localStorage.removeItem(`${DRAFT_KEY}:${ensayoId}`)
+                            }
+                        } catch {
+                            // Ignored
+                        }
+                    }
+                    setForm(serverState)
                 }
             } catch {
                 toast.error('No se pudo cargar ensayo de sales solubles.')
@@ -521,6 +540,43 @@ export default function ModuloForm() {
                         <p className="text-xs text-slate-600">Replica del formato Excel oficial</p>
                     </div>
                 </div>
+
+                {showDraftBanner ? (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm transition-all duration-300 animate-in fade-in slide-in-from-top-2">
+                        <div className="flex items-start gap-2.5 text-sm text-amber-800">
+                            <span className="text-lg leading-none">⚠️</span>
+                            <div>
+                                <p className="font-semibold text-amber-900">Cambios locales no guardados detectados</p>
+                                <p className="text-xs text-amber-700 mt-0.5">
+                                    Se encontró un borrador en este navegador que tiene diferencias con la versión guardada en el servidor.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                            <button
+                                onClick={() => {
+                                    if (draftData) setForm(draftData)
+                                    setShowDraftBanner(false)
+                                    toast.success('Borrador local recuperado con éxito.')
+                                }}
+                                className="rounded-lg bg-amber-600 hover:bg-amber-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition"
+                            >
+                                Recuperar Trabajo
+                            </button>
+                            <button
+                                onClick={() => {
+                                    localStorage.removeItem(`${DRAFT_KEY}:${ensayoId ?? 'new'}`)
+                                    setShowDraftBanner(false)
+                                    setDraftData(null)
+                                    toast.success('Borrador descartado.')
+                                }}
+                                className="rounded-lg border border-amber-300 bg-white hover:bg-amber-50 px-3.5 py-1.5 text-xs font-semibold text-amber-800 shadow-sm transition"
+                            >
+                                Descartar
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
 
                 {loadingEdit ? (
                     <div className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 shadow-sm">
